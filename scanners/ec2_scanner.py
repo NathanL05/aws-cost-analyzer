@@ -68,6 +68,7 @@ class EC2Scanner:
                     price_per_gb = 0.08 if volume.volume_type == 'gp3' else 0.10
                     total_cost += price_per_gb * volume.size
                 except ClientError as e:
+                    print(f"Error getting volume {volume_id}: {e}")
                     continue 
         return round(total_cost, 2)
     
