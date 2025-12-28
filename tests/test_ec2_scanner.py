@@ -33,9 +33,12 @@ def test_scan_stopped_instances(mock_boto_client, mock_boto_resource):
     mock_volume.volume_type = 'gp2'  
     mock_resource.Volume.return_value = mock_volume
     
+    mock_paginator = Mock()
+    mock_client.get_paginator.return_value = mock_paginator
+    
     launch_time = datetime(2025, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
     
-    mock_client.describe_instances.return_value = {
+    mock_paginator.paginate.return_value = [{
         'Reservations': [
             {
                 'Instances': [{
@@ -55,7 +58,7 @@ def test_scan_stopped_instances(mock_boto_client, mock_boto_resource):
                 }]
             }
         ]
-    }
+    }]
     
     scanner = EC2Scanner()
     stopped_instances = scanner.scan_stopped_instances()
