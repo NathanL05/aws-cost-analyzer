@@ -17,22 +17,23 @@ class EC2Scanner:
     def scan_stopped_instances(self) -> List[Dict[str, Any]]:
         """Scan for stopped EC2 instances."""
         try:
-            response = self.ec2_client.describe_instances(
+            paginator = self.ec2_client.get_paginator('describe_instances')
+            
+            stopped_instances = []
+            for page in paginator.paginate(
                 Filters=[{
                     'Name': 'instance-state-name',
                     'Values': ['stopped']
                 }]
-            )
+            ):
+                for reservation in page['Reservations']:
+                    for instance in reservation['Instances']:
+                        instance_data = self._process_stopped_instance(instance)
+                        stopped_instances.append(instance_data)
+            return stopped_instances
         except ClientError as e:
             print(f"Error scanning stopped instances: {e}")
             return []
-        
-        stopped_instances = []
-        for reservation in response['Reservations']:
-            for instance in reservation['Instances']:
-                instance_data = self._process_stopped_instance(instance)
-                stopped_instances.append(instance_data)
-        return stopped_instances
     
     def _process_stopped_instance(self, instance: Dict[str, Any]) -> Dict[str, Any]:
         """
