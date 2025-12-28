@@ -1,10 +1,8 @@
 """Tests for EBS scanner."""
 
-import pytest
 from unittest.mock import patch, Mock
 from datetime import datetime, timezone
 from scanners.ebs_scanner import EBSScanner
-import boto3
 import botocore.client
 
 

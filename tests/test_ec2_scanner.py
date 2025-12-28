@@ -1,10 +1,8 @@
 """Tests for EC2 scanner."""
 
-import pytest
 from unittest.mock import patch, Mock
 from datetime import datetime, timezone
 from scanners.ec2_scanner import EC2Scanner
-import boto3
 import botocore.client
 
 
