@@ -1,11 +1,17 @@
-import boto3
+"""Snapshot scanner for cost leak detection."""
+
 from typing import List, Dict, Any
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
-class SnapshotScanner:
+from .base_scanner import BaseScanner
+
+
+class SnapshotScanner(BaseScanner):
+    """Scanner for old EBS snapshots."""
+    
     def __init__(self, region: str = 'eu-west-1'):
-        self.region = region 
-        self.ec2_client = boto3.client('ec2', region_name=region)
+        """Initialize the snapshot scanner."""
+        super().__init__(region)  
     
     def scan_old_snapshots(self, age_threshold_days: int = 90) -> List[Dict[str, Any]]:
         """
@@ -29,7 +35,7 @@ class SnapshotScanner:
             return old_snapshots
 
         except ClientError as e:
-            print(f"Error scanning snapshots: {e}")
+            self.handle_client_error(e, "scan_old_snapshots")
             return []
     
     def _process_snapshots(self, snapshot: Dict[str, Any], age_threshold_days: int) -> Dict[str, Any]:

@@ -1,16 +1,17 @@
-import boto3
+"""EBS scanner for cost leak detection."""
+
 from typing import List, Dict, Any
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
+from .base_scanner import BaseScanner
 
 
-class EBSScanner:
+class EBSScanner(BaseScanner):
+    """Scanner for unattached EBS volumes."""
+    
     def __init__(self, region: str = "eu-west-1"):
-        """
-        Initialize the EBSScanner.
-        """
-        self.region = region
-        self.ec2_client = boto3.client("ec2", region_name=region)
+        """Initialize the EBS scanner."""
+        super().__init__(region)  
     
 
     def scan_unattached_volumes(self) -> List[Dict[str, Any]]:
@@ -27,7 +28,7 @@ class EBSScanner:
                         unattached_volumes.append(volume_data)
             return unattached_volumes
         except ClientError as e:
-            print(f"Error scanning unattached volumes: {e}")
+            self.handle_client_error(e, "scan_unattached_volumes")
             return []
     def _process_unattached_volume(self, volume: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -1,11 +1,16 @@
-import boto3
+"""EIP scanner for cost leak detection."""
+
 from typing import List, Dict, Any
 from botocore.exceptions import ClientError
+from .base_scanner import BaseScanner
 
-class EIPScanner:
+
+class EIPScanner(BaseScanner):
+    """Scanner for unassociated Elastic IP addresses."""
+    
     def __init__(self, region: str = 'eu-west-1'):
-        self.region = region
-        self.ec2_client = boto3.client('ec2', region_name=region)
+        """Initialize the EIP scanner."""
+        super().__init__(region)  
 
     def scan_unassociated_eips(self) -> List[Dict[str, Any]]:
         """
@@ -21,7 +26,7 @@ class EIPScanner:
                     unassociated_eips.append(eip_data)
             return unassociated_eips
         except ClientError as e:
-            print(f"Error scanning EIPs: {e}")
+            self.handle_client_error(e, "scan_unassociated_eips")
             return []
 
     def _process_unassociated_eip(self, address: Dict[str, Any]) -> Dict[str, Any]:

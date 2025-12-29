@@ -5,13 +5,15 @@ import boto3
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 from botocore.exceptions import ClientError
+from .base_scanner import BaseScanner
 
 
-class EC2Scanner:
+class EC2Scanner(BaseScanner):
+    """Scanner for stopped EC2 instances."""
+    
     def __init__(self, region: str = 'eu-west-1'):
         """Initialize the EC2 scanner."""
-        self.region = region 
-        self.ec2_client = boto3.client('ec2', region_name=region)
+        super().__init__(region) 
         self.ec2_resource = boto3.resource('ec2', region_name=region)
 
     def scan_stopped_instances(self) -> List[Dict[str, Any]]:
@@ -32,7 +34,7 @@ class EC2Scanner:
                         stopped_instances.append(instance_data)
             return stopped_instances
         except ClientError as e:
-            print(f"Error scanning stopped instances: {e}")
+            self.handle_client_error(e, "scan_stopped_instances")
             return []
     
     def _process_stopped_instance(self, instance: Dict[str, Any]) -> Dict[str, Any]:
@@ -69,7 +71,7 @@ class EC2Scanner:
                     price_per_gb = 0.08 if volume.volume_type == 'gp3' else 0.10
                     total_cost += price_per_gb * volume.size
                 except ClientError as e:
-                    print(f"Error getting volume {volume_id}: {e}")
+                    self.handle_client_error(e, f"_calculate_ebs_cost (volume {volume_id})")
                     continue 
         return round(total_cost, 2)
     
