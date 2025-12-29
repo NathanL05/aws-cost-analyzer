@@ -1,7 +1,6 @@
 """Base scanner with common functionality."""
 
 import boto3
-from typing import Dict, Any
 from botocore.exceptions import ClientError
 
 
