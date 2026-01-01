@@ -59,6 +59,7 @@ class SnapshotScanner(BaseScanner):
             'snapshot_id': snapshot_id,
             'volume_id': volume_id,
             'start_time': start_time,
+            'size_gb': size_gb,
             'age_days': age_days,
             'monthly_cost': monthly_cost,
             'volume_exists': volume_exists,

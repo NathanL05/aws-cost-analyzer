@@ -19,7 +19,8 @@ def cli():
 @click.option('--region', default='eu-west-1', help='AWS region to analyze')
 @click.option('--json-output', help='Save results to JSON file')
 @click.option('--show-actual-costs', is_flag=True, help='Fetch actual costs from Cost Explorer')
-def scan(region: str, json_output: str, show_actual_costs: bool):
+@click.option('--csv-output', help='Save results to CSV file')
+def scan(region: str, json_output: str, show_actual_costs: bool, csv_output: str):
     """Scans AWS accounts for cost leaks"""
     click.echo(f"Scanning AWS account in region: {region}\n")
 
@@ -64,7 +65,14 @@ def scan(region: str, json_output: str, show_actual_costs: bool):
     _display_analysis(analysis, show_actual_costs)
 
     if json_output:
-        _export_json(results, analysis, region, json_output)
+        from reporters.json_reporter import JSONReporter
+        JSONReporter.export_to_json(results, analysis, region, json_output)
+        click.echo(f"JSON report saved to: {json_output}")
+
+    if csv_output:
+        from reporters.csv_reporter import CSVReporter
+        CSVReporter.export_to_csv(results, csv_output)
+        click.echo(f"CSV report saved to: {csv_output}")
 
 
 def _display_analysis(analysis: Dict[str, Any], show_actual: bool):
@@ -105,23 +113,6 @@ def _display_analysis(analysis: Dict[str, Any], show_actual: bool):
     else:
         click.echo(f"\nPotential Monthly Savings: ${estimated['total']:.2f}")
         click.echo(f"Potential Annual Savings: ${estimated['total'] * 12:.2f}")
-
-
-def _export_json(scan_results: Dict[str, Any], analysis: Dict[str, Any], region: str, filename: str): 
-    """Export results to JSON file."""
-    import json 
-    from datetime import datetime
-
-    output_data = {
-        'scan_date': datetime.now().isoformat(),
-        'region': region, 
-        'analysis': analysis,
-        'scan_results': scan_results
-    }
-
-    with open(filename, 'w') as f:
-        json.dump(output_data, f, indent=2, default=str)
-    click.echo(f"Results saved to: {filename}")
 
 @cli.command()
 @click.option('--max-workers', default=5, help='Parallel scan threads')
