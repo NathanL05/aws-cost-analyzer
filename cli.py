@@ -6,6 +6,7 @@ from scanners.ec2_scanner import EC2Scanner
 from scanners.ebs_scanner import EBSScanner
 from scanners.eip_scanner import EIPScanner
 from scanners.snapshot_scanner import SnapshotScanner
+from scanners.s3_scanner import S3Scanner
 from tabulate import tabulate
 from analyzers.cost_analyzer import CostAnalyzer
 from typing import Dict, Any
@@ -55,6 +56,12 @@ def scan(region: str, json_output: str, show_actual_costs: bool, csv_output: str
     eip_waste = sum(i['monthly_cost'] for i in results['unassociated_eips'])
     total_waste += eip_waste
     click.echo(f"    Found {len(results['unassociated_eips'])} unassociated Elastic IPs (${eip_waste:.2f}/month)\n")
+
+    click.echo("Scanning S3 buckets...")
+    s3_scanner = S3Scanner()
+    results['unused_buckets'] = s3_scanner.scan_unused_buckets()
+    click.echo(f"    Found {len(results['unused_buckets'])} unused/empty S3 buckets\n")
+
 
     if show_actual_costs:
         click.echo("Fetching actual costs from Cost Explorer...")
