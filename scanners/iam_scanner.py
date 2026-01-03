@@ -65,6 +65,3 @@ class IAMScanner:
         except ClientError as e:
             print(f"Error scanning IAM access keys: {e}")
             return []
-
-scanner = IAMScanner()
-unused_keys = scanner.scan_unused_access_keys()
