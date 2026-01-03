@@ -6,10 +6,12 @@ from scanners.ec2_scanner import EC2Scanner
 from scanners.ebs_scanner import EBSScanner
 from scanners.eip_scanner import EIPScanner
 from scanners.snapshot_scanner import SnapshotScanner
+from scanners.iam_scanner import IAMScanner
 from scanners.s3_scanner import S3Scanner
 from tabulate import tabulate
 from analyzers.cost_analyzer import CostAnalyzer
 from typing import Dict, Any
+
 
 @click.group()
 def cli():
@@ -42,6 +44,10 @@ def scan(region: str, json_output: str, show_actual_costs: bool, csv_output: str
     total_waste += ebs_waste
     click.echo(f"    Found {len(results['unattached_volumes'])} unattached EBS volumes (${ebs_waste:.2f}/month)\n")
 
+    click.echo("Scanning IAM access keys...")
+    iam_scanner = IAMScanner()
+    results['unused_access_keys'] = iam_scanner.scan_unused_access_keys()
+    click.echo(f"    Found {len(results['unused_access_keys'])} unused IAM access keys\n")
 
     click.echo("Scanning snapshots...")
     snapshot_scanner = SnapshotScanner(region=region)
@@ -61,6 +67,7 @@ def scan(region: str, json_output: str, show_actual_costs: bool, csv_output: str
     s3_scanner = S3Scanner()
     results['unused_buckets'] = s3_scanner.scan_unused_buckets()
     click.echo(f"    Found {len(results['unused_buckets'])} unused/empty S3 buckets\n")
+
 
 
     if show_actual_costs:
