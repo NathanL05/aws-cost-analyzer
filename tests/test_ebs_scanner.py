@@ -38,7 +38,6 @@ def test_scan_unattached_volumes_with_attached_only(mock_boto_client):
     mock_client = Mock()
     mock_boto_client.return_value = mock_client
     
-    # Mock paginator
     mock_paginator = Mock()
     mock_client.get_paginator.return_value = mock_paginator
     mock_paginator.paginate.return_value = [{
@@ -69,7 +68,6 @@ def test_scan_unattached_volumes_with_unattached(mock_boto_client):
     mock_client = Mock()
     mock_boto_client.return_value = mock_client
     
-    # Mock paginator
     mock_paginator = Mock()
     mock_client.get_paginator.return_value = mock_paginator
 
@@ -106,7 +104,6 @@ def test_scan_unattached_volumes_mixed(mock_boto_client):
     mock_client = Mock()
     mock_boto_client.return_value = mock_client
     
-    # Mock paginator
     mock_paginator = Mock()
     mock_client.get_paginator.return_value = mock_paginator
 
@@ -197,11 +194,9 @@ def test_process_unattached_volume():
     assert processed['volume_type'] == 'gp3'
     assert processed['availability_zone'] == 'eu-west-1a'
     assert processed['create_time'] == create_time
-    # age_days depends on current time, so just check it exists and is >= 0
     assert 'age_days' in processed
     assert processed['age_days'] >= 0
-    assert processed['monthly_cost'] == 4.00  # 50GB * $0.08
-    # Recommendation depends on age_days, so just check it contains expected keywords
+    assert processed['monthly_cost'] == 4.00 
     assert any(keyword in processed['recommendation'] for keyword in ['MONITOR', 'REVIEW', 'DELETE'])
 
 
@@ -211,7 +206,6 @@ def test_scan_unattached_volumes_error_handling(mock_boto_client):
     mock_client = Mock()
     mock_boto_client.return_value = mock_client
     
-    # Mock paginator to raise exception
     mock_paginator = Mock()
     mock_client.get_paginator.return_value = mock_paginator
     from botocore.exceptions import ClientError

@@ -16,8 +16,23 @@ class EC2Scanner(BaseScanner):
         super().__init__(region) 
         self.ec2_resource = boto3.resource('ec2', region_name=region)
 
-    def scan_stopped_instances(self) -> List[Dict[str, Any]]:
-        """Scan for stopped EC2 instances."""
+    def scan_stopped_instances(self, use_cache: bool = True) -> List[Dict[str, Any]]:
+        """
+        Scan for stopped EC2 instances with optional caching.
+        
+        Args:
+            use_cache: If True, use cached results if available (default: True)
+        
+        Returns:
+            List of stopped EC2 instances
+        """
+        cache_key = self._build_cache_key('stopped_instances')
+        
+        if use_cache:
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                return cached
+        
         try:
             paginator = self.ec2_client.get_paginator('describe_instances')
             
@@ -32,6 +47,10 @@ class EC2Scanner(BaseScanner):
                     for instance in reservation['Instances']:
                         instance_data = self._process_stopped_instance(instance)
                         stopped_instances.append(instance_data)
+            
+            if use_cache:
+                self._set_cache(cache_key, stopped_instances)
+            
             return stopped_instances
         except ClientError as e:
             self.handle_client_error(e, "scan_stopped_instances")

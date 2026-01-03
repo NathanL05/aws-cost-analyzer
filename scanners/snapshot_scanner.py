@@ -13,16 +13,24 @@ class SnapshotScanner(BaseScanner):
         """Initialize the snapshot scanner."""
         super().__init__(region)  
     
-    def scan_old_snapshots(self, age_threshold_days: int = 90) -> List[Dict[str, Any]]:
+    def scan_old_snapshots(self, age_threshold_days: int = 90, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
-        Scan for old snapshots
+        Scan for old snapshots with optional caching.
 
         Args:
             age_threshold_days: The age threshold in days for snapshots to be considered old
+            use_cache: If True, use cached results if available (default: True)
 
         Returns:
             A list of old snapshots
         """
+        cache_key = self._build_cache_key('old_snapshots', age_threshold=age_threshold_days)
+        
+        if use_cache:
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                return cached
+        
         try: 
             pagination = self.ec2_client.get_paginator('describe_snapshots')
 
@@ -32,6 +40,10 @@ class SnapshotScanner(BaseScanner):
                     snapshot_data = self._process_snapshots(snapshot, age_threshold_days)
                     if snapshot_data:
                         old_snapshots.append(snapshot_data)
+            
+            if use_cache:
+                self._set_cache(cache_key, old_snapshots)
+            
             return old_snapshots
 
         except ClientError as e:

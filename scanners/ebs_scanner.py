@@ -14,10 +14,23 @@ class EBSScanner(BaseScanner):
         super().__init__(region)  
     
 
-    def scan_unattached_volumes(self) -> List[Dict[str, Any]]:
+    def scan_unattached_volumes(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
-        Scan for unattached EBS volumes.
+        Scan for unattached EBS volumes with optional caching.
+        
+        Args:
+            use_cache: If True, use cached results if available (default: True)
+        
+        Returns:
+            List of unattached EBS volumes
         """
+        cache_key = self._build_cache_key('unattached_volumes')
+        
+        if use_cache:
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                return cached
+        
         try:
             response = self.ec2_client.get_paginator('describe_volumes')
             unattached_volumes = []
@@ -26,6 +39,10 @@ class EBSScanner(BaseScanner):
                     if volume.get('State') == 'available':
                         volume_data = self._process_unattached_volume(volume)
                         unattached_volumes.append(volume_data)
+            
+            if use_cache:
+                self._set_cache(cache_key, unattached_volumes)
+            
             return unattached_volumes
         except ClientError as e:
             self.handle_client_error(e, "scan_unattached_volumes")

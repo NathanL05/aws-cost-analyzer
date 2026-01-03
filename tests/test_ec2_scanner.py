@@ -264,7 +264,7 @@ def test_calculate_ebs_cost_gp3_vs_gp2(mock_boto_client, mock_boto_resource):
         }]
     }]
     
-    instances = scanner.scan_stopped_instances()
+    instances = scanner.scan_stopped_instances(use_cache=False)
     assert instances[0]['ebs_monthly_cost'] == 10.0  
 
 

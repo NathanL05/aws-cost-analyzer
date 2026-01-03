@@ -12,10 +12,23 @@ class EIPScanner(BaseScanner):
         """Initialize the EIP scanner."""
         super().__init__(region)  
 
-    def scan_unassociated_eips(self) -> List[Dict[str, Any]]:
+    def scan_unassociated_eips(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
-        Scan for unassociated EIPs
+        Scan for unassociated EIPs with optional caching.
+        
+        Args:
+            use_cache: If True, use cached results if available (default: True)
+        
+        Returns:
+            List of unassociated Elastic IPs
         """ 
+        cache_key = self._build_cache_key('unassociated_eips')
+        
+        if use_cache:
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                return cached
+        
         try:
             response = self.ec2_client.describe_addresses()
 
@@ -24,6 +37,10 @@ class EIPScanner(BaseScanner):
                 if address.get('AssociationId') is None:
                     eip_data = self._process_unassociated_eip(address)
                     unassociated_eips.append(eip_data)
+            
+            if use_cache:
+                self._set_cache(cache_key, unassociated_eips)
+            
             return unassociated_eips
         except ClientError as e:
             self.handle_client_error(e, "scan_unassociated_eips")
