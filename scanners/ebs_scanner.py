@@ -33,8 +33,11 @@ class EBSScanner(BaseScanner):
         
         try:
             response = self.ec2_client.get_paginator('describe_volumes')
+            pages = self._retry_aws_call(
+                lambda: list(response.paginate())
+            )
             unattached_volumes = []
-            for page in response.paginate():
+            for page in pages:
                 for volume in page.get('Volumes', []):
                     if volume.get('State') == 'available':
                         volume_data = self._process_unattached_volume(volume)
@@ -52,12 +55,16 @@ class EBSScanner(BaseScanner):
         Process an unattached EBS volume.
         """
         
-        volume_id = volume.get('VolumeId')
-        size = volume.get('Size')
-        volume_type = volume.get('VolumeType')
-        availability_zone = volume.get('AvailabilityZone')
+        volume_id = volume.get('VolumeId', 'unknown')
+        size = volume.get('Size', 0)
+        volume_type = volume.get('VolumeType', 'gp2')
+        availability_zone = volume.get('AvailabilityZone', 'unknown')
         create_time = volume.get('CreateTime')
-        age_days = (datetime.now(timezone.utc) - volume.get('CreateTime')).days
+        
+        if create_time is None:
+            create_time = datetime.now(timezone.utc)
+        
+        age_days = (datetime.now(timezone.utc) - create_time).days
         monthly_cost = self._calculate_monthly_cost(size, volume_type)
         recommendation = self._generate_recommendation(age_days, monthly_cost)
 

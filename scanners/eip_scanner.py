@@ -30,7 +30,9 @@ class EIPScanner(BaseScanner):
                 return cached
         
         try:
-            response = self.ec2_client.describe_addresses()
+            response = self._retry_aws_call(
+                lambda: self.ec2_client.describe_addresses()
+            )
 
             unassociated_eips = []
             for address in response['Addresses']:

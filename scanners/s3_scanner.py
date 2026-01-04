@@ -4,27 +4,41 @@ import boto3
 from typing import List, Dict, Any
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
+from .base_scanner import BaseScanner
 
 
-class S3Scanner:
+class S3Scanner(BaseScanner):
     """Scanner for S3-related cost leaks."""
     
     def __init__(self) -> None:
         """Initialize S3 scanner (S3 is global, no region needed)."""
+        super().__init__(region='us-east-1')
         self.s3_client = boto3.client('s3')
 
-    def scan_unused_buckets(self) -> List[Dict[str, Any]]:
+    def scan_unused_buckets(self, use_cache: bool = True) -> List[Dict[str, Any]]:
         """
         Find S3 buckets that are empty or have no recent activity.
         
         Empty buckets still cost $0.023/GB-month (minimal but accumulates).
         Unused buckets indicate forgotten resources. 
 
+        Args:
+            use_cache: If True, use cached results if available (default: True)
+
         Returns:
             List of unused/empty buckets. 
         """
+        cache_key = self._build_cache_key('unused_buckets')
+        
+        if use_cache:
+            cached = self._get_cached(cache_key)
+            if cached is not None:
+                return cached
+
         try:
-            response = self.s3_client.list_buckets()
+            response = self._retry_aws_call(
+                lambda: self.s3_client.list_buckets()
+            )
             unused_buckets = []
 
             for bucket in response['Buckets']:
@@ -32,7 +46,9 @@ class S3Scanner:
                 creation_date = bucket['CreationDate']
                 
                 try:
-                    objects = self.s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+                    objects = self._retry_aws_call(
+                        lambda: self.s3_client.list_objects_v2(Bucket=bucket_name, MaxKeys=1)
+                    )
                     is_empty = 'Contents' not in objects or len(objects.get('Contents', [])) == 0
                 except ClientError:
                     is_empty = False  
@@ -50,12 +66,14 @@ class S3Scanner:
                         'monthly_cost': monthly_cost,
                         'recommendation': self._generate_recommendation(is_empty, age_days)
                     })
+            
+            if use_cache:
+                self._set_cache(cache_key, unused_buckets)
+            
             return unused_buckets
 
         except ClientError as e:
-            error_code = e.response['Error']['Code']
-            error_message = e.response['Error']['Message']
-            print(f"Error scanning S3 buckets: [{error_code}] {error_message}")
+            self.handle_client_error(e, "scan_unused_buckets")
             return []
     
     def _generate_recommendation(self, is_empty: bool, age_days: int) -> str:

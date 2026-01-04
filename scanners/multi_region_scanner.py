@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 from scanners.ec2_scanner import EC2Scanner
 from scanners.ebs_scanner import EBSScanner
 from scanners.snapshot_scanner import SnapshotScanner
@@ -40,13 +40,19 @@ class MultiRegionScanner:
                     results[region] = future.result()
                 except Exception as e:
                     print(f"Error scanning {region}: {e}")
-                    results[region] = {'error': str(e)}
+                    results[region] = {
+                        'stopped_instances': [],
+                        'unattached_volumes': [],
+                        'old_snapshots': [],
+                        'unassociated_eips': [],
+                        'error': str(e)
+                    }
 
         return results
 
 
 
-    def _scan_region(self, region: str) -> Dict[str, List]:
+    def _scan_region(self, region: str) -> Dict[str, Union[List[Any], str]]:
         """Scan a single AWS region."""
         return {
             'stopped_instances': EC2Scanner(region).scan_stopped_instances(),

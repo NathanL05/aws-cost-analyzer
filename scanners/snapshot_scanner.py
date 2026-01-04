@@ -1,6 +1,6 @@
 """Snapshot scanner for cost leak detection."""
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from botocore.exceptions import ClientError
 from datetime import datetime, timezone
 from .base_scanner import BaseScanner
@@ -32,10 +32,13 @@ class SnapshotScanner(BaseScanner):
                 return cached
         
         try: 
-            pagination = self.ec2_client.get_paginator('describe_snapshots')
+            paginator = self.ec2_client.get_paginator('describe_snapshots')
 
             old_snapshots = []
-            for page in pagination.paginate(OwnerIds=['self']):
+            pages = self._retry_aws_call(
+                lambda: list(paginator.paginate(OwnerIds=['self']))
+            )
+            for page in pages:
                 for snapshot in page['Snapshots']:
                     snapshot_data = self._process_snapshots(snapshot, age_threshold_days)
                     if snapshot_data:
@@ -50,7 +53,7 @@ class SnapshotScanner(BaseScanner):
             self.handle_client_error(e, "scan_old_snapshots")
             return []
     
-    def _process_snapshots(self, snapshot: Dict[str, Any], age_threshold_days: int) -> Dict[str, Any]:
+    def _process_snapshots(self, snapshot: Dict[str, Any], age_threshold_days: int) -> Optional[Dict[str, Any]]:
         """
         Process a snapshot and return the data
         """
@@ -85,7 +88,9 @@ class SnapshotScanner(BaseScanner):
         if volume_id == "unknown":
             return False
         try:
-            self.ec2_client.describe_volumes(VolumeIds=[volume_id])
+            self._retry_aws_call(
+                lambda: self.ec2_client.describe_volumes(VolumeIds=[volume_id])
+            )
             return True
         except ClientError as e:
             if e.response['Error']['Code'] == 'InvalidVolume.NotFound':

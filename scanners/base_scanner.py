@@ -101,10 +101,12 @@ class BaseScanner:
         """
         retryable_errors = ['Throttling', 'ServiceUnavailable', 'RequestLimitExceeded']
         
+        last_exception: Optional[ClientError] = None
         for attempt in range(max_retries):
             try:
                 return func()
             except ClientError as e:
+                last_exception = e
                 error_code = e.response['Error']['Code']
                 
                 if error_code in retryable_errors and attempt < max_retries - 1:
@@ -112,6 +114,10 @@ class BaseScanner:
                     time.sleep(wait_time)
                     continue
                 raise
+        
+        if last_exception:
+            raise last_exception
+        raise RuntimeError("Retry logic failed unexpectedly")
 
     def handle_client_error(self, error: ClientError, context: str) -> None:
         """Standard error handling for boto3 ClientError."""

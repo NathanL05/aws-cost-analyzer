@@ -37,15 +37,20 @@ class EC2Scanner(BaseScanner):
             paginator = self.ec2_client.get_paginator('describe_instances')
             
             stopped_instances = []
-            for page in paginator.paginate(
-                Filters=[{
-                    'Name': 'instance-state-name',
-                    'Values': ['stopped']
-                }]
-            ):
+
+            pages = self._retry_aws_call(
+                lambda: list(paginator.paginate(
+                    Filters=[{
+                        'Name': 'instance-state-name',
+                        'Values': ['stopped']
+                    }]
+                ))
+            )
+
+            for page in pages:
                 for reservation in page['Reservations']:
                     for instance in reservation['Instances']:
-                        instance_data = self._process_stopped_instance(instance)
+                        instance_data = self._process_stopped_instance(instance)   
                         stopped_instances.append(instance_data)
             
             if use_cache:
@@ -86,7 +91,9 @@ class EC2Scanner(BaseScanner):
             if 'Ebs' in bdm:
                 volume_id = bdm['Ebs']['VolumeId']
                 try:
-                    volume = self.ec2_resource.Volume(volume_id)
+                    volume = self._retry_aws_call(
+                        lambda: self.ec2_resource.Volume(volume_id)
+                    )
                     price_per_gb = 0.08 if volume.volume_type == 'gp3' else 0.10
                     total_cost += price_per_gb * volume.size
                 except ClientError as e:
