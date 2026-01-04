@@ -17,11 +17,13 @@
        │
        ▼
 ┌─────────────────────────────────────┐
-│      Scanner Layer                  │
+│      Scanner Layer (Cached)         │
 │                                     │
 │  ┌───────────────────────────────┐  │
 │  │      BaseScanner              │  │
 │  │  - Common initialization      │  │
+│  │  - Caching (5-min TTL)        │  │
+│  │  - Retry logic (transient)    │  │
 │  │  - Error handling            │  │
 │  └──────────────┬────────────────┘  │
 │                 │ (inherits from)    │
@@ -30,6 +32,8 @@
 │  │ EBSScanner          │            │
 │  │ SnapshotScanner     │            │
 │  │ EIPScanner          │            │
+│  │ IAMScanner          │            │
+│  │ S3Scanner           │            │
 │  └─────────────────────┘            │
 └──────┬──────────────────────────────┘
        │

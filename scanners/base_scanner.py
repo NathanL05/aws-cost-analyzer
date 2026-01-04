@@ -2,9 +2,12 @@
 
 import boto3
 from botocore.exceptions import ClientError
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Callable, TypeVar
 from datetime import datetime, timedelta
 import threading
+import time
+
+T = TypeVar('T')
 
 class BaseScanner:
     """Base class for all resource scanners."""
@@ -71,6 +74,44 @@ class BaseScanner:
                 self._cache.pop(cache_key, None)
             else:
                 self._cache.clear()
+
+    def _retry_aws_call(
+        self, 
+        func: Callable[[], T], 
+        max_retries: int = 3, 
+        delay: float = 1.0
+    ) -> T:
+        """
+        Retry AWS API calls on transient errors with exponential backoff.
+        
+        Handles transient AWS errors like Throttling and ServiceUnavailable
+        by retrying with exponential backoff. Non-retryable errors are
+        immediately re-raised.
+        
+        Args:
+            func: A callable that performs the AWS API call
+            max_retries: Maximum number of retry attempts (default: 3)
+            delay: Initial delay in seconds before retry (default: 1.0)
+        
+        Returns:
+            The result of the AWS API call
+        
+        Raises:
+            ClientError: If all retries are exhausted or error is not retryable
+        """
+        retryable_errors = ['Throttling', 'ServiceUnavailable', 'RequestLimitExceeded']
+        
+        for attempt in range(max_retries):
+            try:
+                return func()
+            except ClientError as e:
+                error_code = e.response['Error']['Code']
+                
+                if error_code in retryable_errors and attempt < max_retries - 1:
+                    wait_time = delay * (2 ** attempt)  
+                    time.sleep(wait_time)
+                    continue
+                raise
 
     def handle_client_error(self, error: ClientError, context: str) -> None:
         """Standard error handling for boto3 ClientError."""
