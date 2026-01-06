@@ -61,6 +61,40 @@ python3 cli.py scan --region us-east-1
 python3 cli.py scan --json-output results.json
 ```
 
+## 🐳 Docker Usage
+
+### Build locally
+```bash
+cd aws-cost-analyzer
+docker build -t aws-cost-analyzer:latest .
+```
+
+### Run with AWS credentials
+```bash
+# Set AWS credentials as environment variables first
+export AWS_ACCESS_KEY_ID=your_access_key
+export AWS_SECRET_ACCESS_KEY=your_secret_key
+
+# Run scan in container
+docker run --rm \
+  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_DEFAULT_REGION=eu-west-1 \
+  aws-cost-analyzer:latest scan --region eu-west-1
+```
+
+### Export results to host
+```bash
+docker run --rm \
+  -v $(pwd):/output \
+  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_DEFAULT_REGION=eu-west-1 \
+  aws-cost-analyzer:latest scan --json-output /output/report.json
+```
+
+**Note:** Always set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as environment variables in your shell before running Docker commands. The `$VAR` syntax passes the value from your shell to the container.
+
 ## 📊 Example Output
 
 ```
@@ -319,6 +353,44 @@ mypy scanners/ analyzers/ --ignore-missing-imports
 - Requires Python **3.11+** for type hints and modern features
 - Check version: `python3 --version`
 - Upgrade Python: `brew install python@3.11` (macOS) or use pyenv
+
+### Docker: "Unable to locate credentials" Error
+
+**Problem:** Getting `NoCredentialsError` when running Docker container.
+
+**Solutions:**
+1. **Set environment variables in your shell BEFORE running Docker:**
+   ```bash
+   export AWS_ACCESS_KEY_ID=your_access_key_here
+   export AWS_SECRET_ACCESS_KEY=your_secret_key_here
+   export AWS_DEFAULT_REGION=eu-west-1
+   ```
+
+2. **Verify variables are set:**
+   ```bash
+   echo $AWS_ACCESS_KEY_ID  # Should show your key (not empty)
+   echo $AWS_SECRET_ACCESS_KEY  # Should show your secret (not empty)
+   ```
+
+3. **Alternative: Pass credentials directly (less secure):**
+   ```bash
+   docker run --rm \
+     -e AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE \
+     -e AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
+     -e AWS_DEFAULT_REGION=eu-west-1 \
+     aws-cost-analyzer:latest scan --region eu-west-1
+   ```
+
+4. **Use AWS credentials file (if you have `~/.aws/credentials`):**
+   ```bash
+   # Mount AWS credentials directory
+   docker run --rm \
+     -v ~/.aws:/root/.aws:ro \
+     -e AWS_PROFILE=default \
+     aws-cost-analyzer:latest scan --region eu-west-1
+   ```
+
+**Common mistake:** Running `docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID` when `$AWS_ACCESS_KEY_ID` is empty in your shell. Always `export` the variables first.
 
 ## ❓ FAQ
 
