@@ -63,37 +63,64 @@ python3 cli.py scan --json-output results.json
 
 ## 🐳 Docker Usage
 
-### Build locally
-```bash
-cd aws-cost-analyzer
-docker build -t aws-cost-analyzer:latest .
-```
+### Quick Start with Docker
 
-### Run with AWS credentials
 ```bash
-# Set AWS credentials as environment variables first
-export AWS_ACCESS_KEY_ID=your_access_key
-export AWS_SECRET_ACCESS_KEY=your_secret_key
+# Pull from Docker Hub (coming soon)
+docker pull YOUR_USERNAME/aws-cost-analyzer:latest
 
-# Run scan in container
+# Run with AWS credentials from environment
 docker run --rm \
-  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
+  -e AWS_ACCESS_KEY_ID \
+  -e AWS_SECRET_ACCESS_KEY \
   -e AWS_DEFAULT_REGION=eu-west-1 \
   aws-cost-analyzer:latest scan --region eu-west-1
 ```
 
-### Export results to host
+### Build Locally
+
 ```bash
-docker run --rm \
-  -v $(pwd):/output \
-  -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID \
-  -e AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY \
-  -e AWS_DEFAULT_REGION=eu-west-1 \
-  aws-cost-analyzer:latest scan --json-output /output/report.json
+# Clone repository
+git clone https://github.com/YOUR_USERNAME/aws-cost-analyzer.git
+cd aws-cost-analyzer
+
+# Build optimized image
+docker build -t aws-cost-analyzer:latest .
+
+# Image size: ~150MB (multi-stage build)
 ```
 
-**Note:** Always set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` as environment variables in your shell before running Docker commands. The `$VAR` syntax passes the value from your shell to the container.
+### Development with Docker Compose
+
+```bash
+# Start development environment
+docker-compose up -d
+
+# Enter container for interactive development
+docker-compose exec aws-cost-analyzer bash
+
+# Inside container:
+python cli.py scan --region eu-west-1
+python -m pytest tests/ -v
+
+# Stop environment
+docker-compose down
+```
+
+### Docker Image Details
+
+**Multi-stage build:**
+- Stage 1 (builder): Installs dependencies, runs tests
+- Stage 2 (runtime): Minimal image with only runtime requirements
+
+**Security features:**
+- Runs as non-root user (appuser)
+- No build tools in final image
+- Health check included
+
+**Image size comparison:**
+- Without multi-stage: ~500-600 MB
+- With multi-stage: ~150-180 MB (70% reduction)
 
 ## 📊 Example Output
 
@@ -601,10 +628,10 @@ This project taught me:
 - [x] CSV export format
 - [x] IAM access key scanning
 - [x] S3 bucket scanning
+- [x] Docker containerization (multi-stage builds, 70% size reduction)
 - [ ] RDS instance analysis
 - [ ] Lambda function analysis
 - [ ] CloudWatch Logs analysis
-- [ ] Docker containerization
 - [ ] Slack/Email notifications
 - [ ] Historical cost tracking
 - [ ] Web dashboard

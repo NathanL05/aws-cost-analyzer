@@ -31,3 +31,8 @@ htmlcov/
 *.json
 *.csv
 !requirements.txt
+
+# Environment files
+.env 
+.env.local
+.env.*.local

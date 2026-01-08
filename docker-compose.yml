@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  # Main CLI Application 
+  aws-cost-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile 
+      target: builder # Use builder stage for development (includes test tools)
+    image: aws-cost-analyzer:dev 
+    container_name: aws-cost-analyzer-dev
+
+    # Mount code for live reloading during development
+    volumes:
+      - ./scanners:/app/scanners
+      - ./analyzers:/app/analyzers
+      - ./reporters:/app/reporters
+      - ./cli.py:/app/cli.py
+      - ./tests:/app/tests
+      # Mount AWS credentials to ROOT home (builder stage runs as root)
+      - ~/.aws:/root/.aws:ro
+
+    # Environment variables from .env file
+    env_file: 
+      - .env
+
+    # Override entrypoint for interactive development
+    entrypoint: /bin/bash
+    stdin_open: true
+    tty: true 
+  
+    # Network mode for AWS access 
+    network_mode: host
+    
