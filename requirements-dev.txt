@@ -1,0 +1,16 @@
+# Development and Testing Dependencies
+# Install with: pip install -r requirements-dev.txt
+
+# Include production dependencies
+-r requirements.txt
+
+# Testing Framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+moto>=5.0.0
+moto[all]>=4.2.0
+freezegun>=1.2.0
+
+# Code Quality
+ruff>=0.1.0
+mypy>=1.7.0

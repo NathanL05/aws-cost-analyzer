@@ -23,7 +23,6 @@ coverage.xml
 .hypothesis
 *.md
 !README.md
-tests/
 docs/
 .github/
 *.json
