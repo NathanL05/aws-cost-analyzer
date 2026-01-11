@@ -419,6 +419,261 @@ mypy scanners/ analyzers/ --ignore-missing-imports
 
 **Common mistake:** Running `docker run -e AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID` when `$AWS_ACCESS_KEY_ID` is empty in your shell. Always `export` the variables first.
 
+## ☸️ Kubernetes Deployment
+
+Deploy aws-cost-analyzer to Kubernetes for automated daily scans with persistent result storage.
+
+### Prerequisites
+
+- kubectl installed and configured
+- Kubernetes cluster running (minikube, EKS, GKE, or AKS)
+- Docker image built
+- AWS credentials configured
+
+### Quick Start
+
+```bash
+# 1. Build and load image (for minikube)
+docker build -t aws-cost-analyzer:v1.0 .
+minikube image load aws-cost-analyzer:v1.0
+
+# For EKS/GKE: Push to container registry
+# docker tag aws-cost-analyzer:v1.0 YOUR_REGISTRY/aws-cost-analyzer:v1.0
+# docker push YOUR_REGISTRY/aws-cost-analyzer:v1.0
+
+# 2. Create AWS credentials secret
+kubectl create secret generic aws-credentials \
+  --from-literal=access-key-id=$AWS_ACCESS_KEY_ID \
+  --from-literal=secret-access-key=$AWS_SECRET_ACCESS_KEY
+
+# 3. Apply manifests
+kubectl apply -f k8s/base/configmap.yaml
+kubectl apply -f k8s/base/pvc.yaml
+kubectl apply -f k8s/base/job.yaml
+
+# 4. View scan results
+kubectl logs -l app=aws-cost-analyzer
+```
+
+### Kubernetes Resources
+
+The deployment includes:
+
+- **ConfigMap** (`configmap.yaml`) - Environment configuration (region, thresholds)
+- **PersistentVolumeClaim** (`pvc.yaml`) - 1GB storage for scan results
+- **Job** (`job.yaml`) - One-time test scan
+- **CronJob** (`cronjob.yaml`) - Automated daily scans at 9 AM UTC
+
+### CronJob (Automated Daily Scans)
+
+Enable daily automated scans with persistent result storage:
+
+```bash
+# Enable daily scans at 9 AM UTC
+kubectl apply -f k8s/base/cronjob.yaml
+
+# Check CronJob status
+kubectl get cronjobs
+
+# View job history
+kubectl get jobs
+
+# Manually trigger (don't wait for schedule)
+kubectl create job --from=cronjob/aws-cost-analyzer-daily manual-test-$(date +%s)
+
+# Wait for completion and view logs
+kubectl wait --for=condition=complete --timeout=60s job/manual-test-<timestamp>
+kubectl logs job/manual-test-<timestamp>
+```
+
+### View Historical Results
+
+Scan results are saved to a PersistentVolume with date-stamped filenames:
+
+```bash
+# List all scan files
+kubectl run -it --rm pvc-viewer --image=busybox --restart=Never --overrides='
+{
+  "spec": {
+    "containers": [{
+      "name": "pvc-viewer",
+      "image": "busybox",
+      "command": ["ls", "-lh", "/output"],
+      "volumeMounts": [{"name": "output-volume", "mountPath": "/output"}]
+    }],
+    "volumes": [{
+      "name": "output-volume",
+      "persistentVolumeClaim": {"claimName": "cost-analyzer-output"}
+    }]
+  }
+}'
+
+# Read a specific scan result
+kubectl run -it --rm pvc-reader --image=busybox --restart=Never --overrides='
+{
+  "spec": {
+    "containers": [{
+      "name": "pvc-reader",
+      "image": "busybox",
+      "command": ["cat", "/output/scan-20260111.json"],
+      "volumeMounts": [{"name": "output-volume", "mountPath": "/output"}]
+    }],
+    "volumes": [{
+      "name": "output-volume",
+      "persistentVolumeClaim": {"claimName": "cost-analyzer-output"}
+    }]
+  }
+}'
+```
+
+### Architecture Decision: Jobs vs Deployments
+
+**Why Job/CronJob instead of Deployment?**
+
+This CLI tool uses Kubernetes **Jobs** and **CronJobs**, not Deployments:
+
+- ✅ **Jobs**: Run-to-completion workloads (scan completes and exits)
+- ✅ **CronJobs**: Scheduled Jobs (daily scans at 9 AM UTC)
+- ❌ **Deployments**: Long-running services (web servers, APIs)
+
+**Why this matters:** Using a Deployment for a CLI tool that exits after completion causes **CrashLoopBackOff** because Kubernetes tries to keep restarting a process that's designed to finish.
+
+### Resource Configuration
+
+The CronJob includes production-ready resource limits:
+
+```yaml
+resources:
+  requests:
+    cpu: "250m"        # Minimum guaranteed CPU
+    memory: "256Mi"    # Minimum guaranteed memory
+  limits:
+    cpu: "500m"        # Maximum CPU (throttled if exceeded)
+    memory: "512Mi"    # Maximum memory (OOMKilled if exceeded)
+```
+
+**Why set limits?** Prevents pods from consuming excessive cluster resources and starving other workloads.
+
+### Troubleshooting
+
+#### ImagePullBackOff Error
+
+**Problem:** Pod fails with `ImagePullBackOff` or `ErrImagePull`.
+
+**Solution:**
+```bash
+# For minikube: Load image into minikube's Docker daemon
+minikube image load aws-cost-analyzer:v1.0
+
+# Verify image exists in minikube
+minikube image ls | grep aws-cost-analyzer
+
+# For EKS/GKE: Ensure image is pushed to registry and imagePullPolicy is correct
+```
+
+#### Secret Not Found Error
+
+**Problem:** Pod fails with `Secret "aws-credentials" not found`.
+
+**Solution:**
+```bash
+# Create the secret
+kubectl create secret generic aws-credentials \
+  --from-literal=access-key-id=$AWS_ACCESS_KEY_ID \
+  --from-literal=secret-access-key=$AWS_SECRET_ACCESS_KEY
+
+# Verify secret exists
+kubectl get secret aws-credentials
+
+# Verify secret has correct keys
+kubectl describe secret aws-credentials
+```
+
+#### CronJob Not Running
+
+**Problem:** CronJob doesn't create jobs at scheduled time.
+
+**Solution:**
+```bash
+# Check CronJob status
+kubectl get cronjobs
+kubectl describe cronjob aws-cost-analyzer-daily
+
+# Check schedule (should be "0 9 * * *" for 9 AM UTC)
+kubectl get cronjob aws-cost-analyzer-daily -o yaml | grep schedule
+
+# Check if CronJob is suspended
+kubectl get cronjob aws-cost-analyzer-daily -o yaml | grep suspend
+
+# For minikube: Ensure minikube is running
+minikube status
+```
+
+#### View Pod Errors
+
+**Problem:** Job fails but unsure why.
+
+**Solution:**
+```bash
+# Get pod name
+kubectl get pods -l app=aws-cost-analyzer
+
+# View pod logs
+kubectl logs <pod-name>
+
+# View detailed pod state and events
+kubectl describe pod <pod-name>
+
+# View cluster events
+kubectl get events --sort-by='.lastTimestamp' | grep cost-analyzer
+```
+
+### Production Considerations
+
+For production deployments (EKS/GKE):
+
+1. **Use IAM Roles for Service Accounts (IRSA)** instead of Secrets:
+   - Eliminates need to store credentials in cluster
+   - More secure (credentials rotated automatically)
+   - AWS STS temporary credentials
+
+2. **Use Helm charts** for easier version management:
+   - Package all manifests together
+   - Environment-specific values (dev/staging/prod)
+   - Version control for deployments
+
+3. **Add monitoring and alerting**:
+   - Prometheus metrics for scan duration, resources found
+   - Alerting if scan fails or finds costs above threshold
+   - Grafana dashboards for cost trends
+
+4. **Use Kustomize overlays** for environment-specific configs:
+   - Base manifests for common configuration
+   - Overlays for dev/staging/prod differences
+   - Different schedules per environment
+
+5. **Implement Pod Security Standards**:
+   - Non-root user (already implemented in Dockerfile)
+   - Read-only root filesystem where possible
+   - Drop unnecessary capabilities
+
+### Cleanup
+
+```bash
+# Delete all resources
+kubectl delete cronjob aws-cost-analyzer-daily
+kubectl delete job -l app=aws-cost-analyzer
+kubectl delete pvc cost-analyzer-output
+kubectl delete configmap aws-cost-analyzer-config
+kubectl delete secret aws-credentials
+
+# For minikube: Stop cluster
+minikube stop
+
+# For minikube: Delete cluster (removes all data)
+minikube delete
+```
+
 ## ❓ FAQ
 
 ### Why does scanning take so long?
