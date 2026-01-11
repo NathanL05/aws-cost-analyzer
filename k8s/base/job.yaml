@@ -1,0 +1,35 @@
+apiVersion: batch/v1 
+kind: Job 
+metadata:
+  name: aws-cost-analyzer-test 
+spec:
+  template:
+    metadata:
+      labels:
+        app: aws-cost-analyzer
+    spec:
+      containers:
+      - name: aws-cost-analyzer 
+        image: aws-cost-analyzer:v1.0  
+        imagePullPolicy: Never  
+        command: ["python", "cli.py"]
+        args: ["scan", "--region", "eu-west-1"]
+
+        envFrom:
+        - configMapRef:
+            name: aws-cost-analyzer-config  
+
+        env:
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom: 
+            secretKeyRef:
+              name: aws-credentials
+              key: access-key-id 
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom: 
+            secretKeyRef:
+              name: aws-credentials
+              key: secret-access-key 
+      
+      restartPolicy: Never  
+  backoffLimit: 2
