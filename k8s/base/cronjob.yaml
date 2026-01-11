@@ -1,0 +1,61 @@
+apiVersion: batch/v1 
+kind: CronJob 
+metadata:
+  name: aws-cost-analyzer-daily 
+spec: 
+  schedule: "0 9 * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: aws-cost-analyzer
+            type: cronjob
+        spec: 
+          containers:
+          - name: aws-cost-analyzer 
+            image: aws-cost-analyzer:v1.0 
+            imagePullPolicy: Never  
+
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                python cli.py scan --region eu-west-1 --show-actual-costs --json-output /output/scan-$(date +%Y%m%d).json  
+
+            envFrom:  
+            - configMapRef:
+                name: aws-cost-analyzer-config
+
+            env: 
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:  
+                secretKeyRef:
+                  name: aws-credentials
+                  key: access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:  
+                secretKeyRef:
+                  name: aws-credentials
+                  key: secret-access-key
+            
+            resources:
+              requests:
+                cpu: "250m"
+                memory: "256Mi"
+              limits:
+                cpu: "500m"
+                memory: "512Mi"
+            
+            volumeMounts:
+            - name: output-volume
+              mountPath: /output
+
+          volumes: 
+          - name: output-volume 
+            persistentVolumeClaim:  
+              claimName: cost-analyzer-output
+          
+          restartPolicy: OnFailure 
