@@ -159,58 +159,93 @@ docker-compose down
 ### System Overview
 
 ```
-┌─────────────┐
-│   User CLI  │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────────────────────────────┐
-│         cli.py (Click)              │
-│  - Parse arguments                  │
-│  - Orchestrate scanners             │
-│  - Format output                    │
-└──────┬──────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────┐
-│      Scanner Layer (Cached)         │
-│                                     │
-│  ┌───────────────────────────────┐  │
-│  │      BaseScanner              │  │
-│  │  - Common initialization      │  │
-│  │  - Caching (5-min TTL)        │  │
-│  │  - Retry logic (transient)    │  │
-│  │  - Error handling            │  │
-│  └──────────────┬────────────────┘  │
-│                 │ (inherits from)    │
-│  ┌──────────────┴──────┐            │
-│  │ EC2Scanner          │            │
-│  │ EBSScanner          │            │
-│  │ SnapshotScanner     │            │
-│  │ EIPScanner          │            │
-│  │ IAMScanner          │            │
-│  │ S3Scanner           │            │
-│  └─────────────────────┘            │
-└──────┬──────────────────────────────┘
-       │
-       ▼
-┌─────────────────────────────────────┐
-│      AWS APIs (boto3)               │
-│  - describe_instances()             │
-│  - describe_volumes()               │
-│  - describe_snapshots()             │
-│  - describe_addresses()             │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                     User / CI/CD Pipeline                   │
+└────────────┬────────────────────────────────────────────────┘
+             │
+             ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Deployment Options                       │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │ Local Python │  │ Docker CLI   │  │ Kubernetes   │       │
+│  │   (venv)     │  │  Container   │  │  CronJob     │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+└─────────┼─────────────────┼──────────────────┼─────────────┘
+          │                  │                  │
+          └──────────────────┴──────────────────┘
+                             │
+                             ▼
+          ┌──────────────────────────────────────┐
+          │      aws-cost-analyzer CLI           │
+          │  ┌────────────┐  ┌────────────────┐  │
+          │  │  Scanner   │  │   Analyzer     │  │
+          │  │   Layer    │→ │    Layer       │  │
+          │  └────────────┘  └────────────────┘  │
+          └──────────┬───────────────────────────┘
+                     │
+       ┌─────────────┴─────────────┐
+       │                           │
+       ▼                           ▼
+┌──────────────┐            ┌─────────────┐
+│ AWS Services │            │   Reports   │
+│ - EC2        │            │ - Console   │
+│ - EBS        │            │ - JSON      │
+│ - Snapshots  │            │ - CSV       │
+│ - Elastic IP │            │             │
+│ - Cost Expl. │            │             │
+└──────────────┘            └─────────────┘
 ```
+
+### Component Details
+
+#### 1. Scanner Layer
+- **EC2Scanner**: Detects stopped instances, calculates EBS costs
+- **EBSScanner**: Finds unattached volumes, estimates waste
+- **SnapshotScanner**: Identifies old snapshots (>90 days)
+- **EIPScanner**: Finds unassociated Elastic IPs
+
+#### 2. Analyzer Layer
+- **CostExplorerAnalyzer**: Fetches actual AWS costs
+- **CostAnalyzer**: Aggregates data, calculates savings potential
+
+#### 3. Reporter Layer
+- **ConsoleReporter**: Pretty tables for terminal output
+- **JSONReporter**: Machine-readable export
+- **CSVReporter**: Spreadsheet-compatible format
+
+### Deployment Models
+
+| Model | Use Case | Pros | Cons |
+|-------|----------|------|------|
+| Local Python | Development, testing | Fast iteration | Requires local setup |
+| Docker CLI | One-off scans, portability | No dependencies | Manual execution |
+| Kubernetes CronJob | Production, automation | Scheduled, scalable | Requires K8s cluster |
 
 ### Data Flow
 
-1. User runs CLI command
-2. CLI instantiates scanners
-3. Scanners check cache (5-minute TTL)
-4. If cache miss, query AWS APIs (with retry logic for transient errors)
-5. Process and aggregate results
-6. Format output (console/JSON/CSV)
+```
+1. User triggers scan (CLI/CronJob/CI)
+2. Scanners query AWS APIs in parallel
+3. Raw data passed to Analyzers
+4. Cost calculations performed
+5. Cost Explorer fetches actual bills
+6. Reporters format output
+7. Results displayed/exported
+```
+
+### Security Model
+
+- **AWS Credentials**: Stored as K8s Secrets or environment variables
+- **Container Security**: Non-root user, minimal base image
+- **Network**: Read-only AWS API calls (no modifications)
+- **Secrets Management**: Never committed to git
+
+### Performance
+
+- **Scan Time**: 10-30 seconds (varies by resource count)
+- **API Calls**: ~10-20 per scan (uses pagination)
+- **Memory**: <512MB peak
+- **CPU**: <0.5 core average
 
 ### Project Structure
 
